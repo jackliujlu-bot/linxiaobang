@@ -11,7 +11,7 @@
 - 本地 HTTP 演示不能作为公网安全部署模板
 
 ## 阶段性发布状态
-本检查点已包含可运行的手机优先完整流程。真实PostgreSQL测试、浏览器/HTTP端到端测试、类型检查、干净安装、生产构建、重启持久化与隔离备份恢复均已通过（详细记录见 docs/IMPLEMENTATION-NOTES.md）。独立全量代码审查和Mac部署仍待验收；Docker尚未实际运行验证。仅按下述原生本地流程运行虚构数据演示。
+本检查点已包含可运行的手机优先完整流程。真实PostgreSQL测试、浏览器/HTTP端到端测试、类型检查、干净安装、生产构建、重启持久化与隔离备份恢复均已通过（详细记录见 docs/IMPLEMENTATION-NOTES.md）。独立全量代码审查已完成，所发现的4项重要问题已修复并补充回归。Mac部署仍待验收，Docker尚未实际运行验证。仅按下述原生本地流程运行虚构数据演示。
 
 ## 原生本地运行（云端 Linux / Mac）
 需要 Node 24。请在目标机器重新安装依赖，不能复制 Linux node_modules 到 Mac。
@@ -50,8 +50,8 @@ Mac 上可改为安装 Playwright Chromium（需安装授权）：npx playwright
 
 ## 备份与隔离恢复
 在项目根目录加载数据库环境后：
-- ./scripts/backup.sh .local/demo.backup.json
-- ./scripts/restore-test.sh .local/demo.backup.json
+- sh scripts/backup.sh .local/demo.backup.json
+- sh scripts/restore-test.sh .local/demo.backup.json
 
 备份以 repeatable-read 一致快照写入所有应用表，文件权限为0600，若路径已存在则拒绝覆盖。备份包含账号哈希、会话摘要及私密说明，必须保密，不能上传到公开仓库。
 恢复验证只接受当前迁移版本的备份，自动创建随机 linxiaobang_restore_ 临时数据库，插入所有记录、逐表比较完整行摘要，再删除该临时库；没有覆盖现有数据库的选项。

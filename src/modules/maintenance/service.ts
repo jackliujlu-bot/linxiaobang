@@ -13,7 +13,7 @@ export async function runMaintenance(now:Date):Promise<{expired:number,purged:nu
    AND NOT EXISTS(SELECT 1 FROM reports r WHERE r.order_id=o.id AND r.status='OPEN')
    ORDER BY o.id FOR UPDATE OF o SKIP LOCKED`,[now])).rows;
   let purged=0;
-  for(const {id} of eligible)purged+=(await c.query('DELETE FROM order_private WHERE order_id=$1',[id])).rowCount||0;
+  for(const {id} of eligible)purged+=(await c.query("DELETE FROM order_private p WHERE p.order_id=$1 AND NOT EXISTS (SELECT 1 FROM reports r WHERE r.order_id=p.order_id AND r.status='OPEN')",[id])).rowCount||0;
   await c.query('DELETE FROM sessions WHERE expires_at <= $1',[now]);
   await c.query("DELETE FROM login_attempts WHERE window_start <= $1::timestamptz-interval '15 minutes'",[now]);
   return{expired:due.length,purged};
