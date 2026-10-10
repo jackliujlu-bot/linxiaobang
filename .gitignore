@@ -14,3 +14,4 @@ coverage/
 
 # Original user review document is retained locally, excluded from public source.
 docs/邻小帮第一版产品设计.docx
+*.backup.json

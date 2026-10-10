@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_DB: linxiaobang
+      POSTGRES_USER: linxiaobang
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a unique local database password}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linxiaobang -d linxiaobang"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+  app:
+    build: .
+    image: linxiaobang:local
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: postgresql://linxiaobang:${POSTGRES_PASSWORD:?Set a unique local database password}@db:5432/linxiaobang
+      APP_ORIGIN: http://127.0.0.1:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+  maintenance:
+    image: linxiaobang:local
+    command: ["npm", "run", "maintenance"]
+    environment:
+      DATABASE_URL: postgresql://linxiaobang:${POSTGRES_PASSWORD:?Set a unique local database password}@db:5432/linxiaobang
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres-data:

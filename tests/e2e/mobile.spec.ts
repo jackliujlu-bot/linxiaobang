@@ -29,7 +29,7 @@ test('two accounts complete publication, atomic claim, delivery and confirmation
  await h.getByRole('button',{name:'领取任务',exact:true}).click();
  await expect(h.getByRole('button',{name:'标记已送达'})).toBeVisible();
  await h.evaluate(()=>window.scrollTo(0,0));
- await h.screenshot({path:testInfo.outputPath('helper-claimed-390.png'),fullPage:true});
+ await h.screenshot({path:testInfo.outputPath('helper-claimed-390.png'),fullPage:false});
  await h.getByRole('button',{name:'标记已送达'}).click();
  await p.reload();await p.getByRole('button',{name:'确认完成',exact:true}).click();
  await p.getByRole('button',{name:'确认，已收到'}).click();
@@ -38,14 +38,18 @@ test('two accounts complete publication, atomic claim, delivery and confirmation
  await expect(p.getByText('演示数据，无实际资金往来').first()).toBeVisible();
  for(const page of[p,h]){await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}
  await p.evaluate(()=>window.scrollTo(0,0));
- await p.screenshot({path:testInfo.outputPath('completed-360.png'),fullPage:true});
- for(const name of ['首页','发布','订单','我的']){await p.getByRole('link',{name,exact:true}).click();await expect(p.locator('h1')).toBeVisible();if(name==='首页'){await p.screenshot({path:testInfo.outputPath('home-360.png'),fullPage:true});}}
+ await p.screenshot({path:testInfo.outputPath('completed-360.png'),fullPage:false});
+ for(const [category,pickupArea,dropoffArea,bountyCents] of [['MEAL','示例社区 · 南门取餐架','示例社区 · 中庭公共点',200],['TRASH','示例社区 · 东侧公共点','示例社区 · 分类收集点',300]]){
+  const fixture=await p.request.post('/api/orders',{headers:{origin:'http://127.0.0.1:3000','x-csrf':'1','x-request-id':crypto.randomUUID()},data:{category,pickupArea,dropoffArea,bountyCents,privateDetails:'仅供截图的虚构交接说明',deadlineAt:new Date(Date.now()+3600000).toISOString()}});expect(fixture.ok()).toBeTruthy();
+ }
+ for(const [name,path,title] of [['首页','/','顺路帮个小忙'],['发布','/publish','发布小任务'],['订单','/orders','我的订单'],['我的','/me','我的']]){await p.getByRole('link',{name,exact:true}).click();await expect(p).toHaveURL('http://127.0.0.1:3000'+path);await expect(p.getByRole('heading',{name:title,exact:true})).toBeVisible();if(name==='首页'){await expect(p.locator('.order-card').first()).toBeVisible();await p.evaluate(()=>window.scrollTo(0,0));await p.screenshot({path:testInfo.outputPath('home-360.png'),fullPage:false});}}
+
  await owner.close();await helper.close();
 });
 test('empty, failure and loading states are clear; cancellation needs confirmation',async({page},testInfo)=>{
  await register(page,'empty_'+Date.now().toString().slice(-10));
  await page.goto('/orders');await expect(page.getByText('还没有相关订单')).toBeVisible();
- await page.screenshot({path:testInfo.outputPath('orders-empty.png'),fullPage:true});
+ await page.screenshot({path:testInfo.outputPath('orders-empty.png'),fullPage:false});
  await page.route('**/api/orders?*',async route=>{await new Promise(r=>setTimeout(r,700));await route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:'暂时无法加载，请重试'})});});
  await page.goto('/');await expect(page.getByRole('status').filter({hasText:'加载中'})).toBeVisible();await expect(page.locator('p[role=alert]')).toContainText('暂时无法加载');
 });

@@ -2,6 +2,7 @@
 import EmbeddedPostgres from 'embedded-postgres';
 import {mkdir,readFile,writeFile,access} from 'node:fs/promises';
 import {randomBytes} from 'node:crypto';
+process.umask(0o077);
 await mkdir('.local',{recursive:true,mode:0o700});
 const secretPath='.local/database-password';
 let password:string;

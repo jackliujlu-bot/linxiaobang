@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+.env*
+!.env.example
+.local
+.superpowers
+test-results
+playwright-report
+*.log
+*.dump
+*.backup.json
+docs/邻小帮第一版产品设计.docx

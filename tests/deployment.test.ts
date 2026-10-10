@@ -1,0 +1,15 @@
+import {it,expect} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {mkdtemp,rm,stat} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {parse} from 'yaml';
+import {backup,restoreForTest} from '../src/modules/maintenance/backup';
+import {actor,orderInput} from './helpers';
+import {createOrder} from '../src/modules/orders/service';
+import {pool} from '../src/lib/db';
+it('binds HTTP to loopback, never publishes postgres and has no default password',()=>{const c=parse(readFileSync('compose.yaml','utf8'));expect(c.services.app.ports).toEqual(['127.0.0.1:3000:3000']);expect(c.services.db.ports).toBeUndefined();expect(c.services.db.environment.POSTGRES_PASSWORD).toContain(':?');expect(c.services.maintenance.ports).toBeUndefined();});
+it('restores real data in an isolated database and leaves original untouched',async()=>{const a=await actor(),o=await createOrder(a,orderInput(),new Date()),dir=await mkdtemp(join(tmpdir(),'linxiaobang-backup-test-')),path=join(dir,'fixture.json');try{await backup(process.env.DATABASE_URL!,path);expect((await stat(path)).mode&0o077).toBe(0);const result=await restoreForTest(process.env.DATABASE_URL!,path);expect(result.database).toMatch(/^linxiaobang_restore_[a-f0-9]+$/);expect(result.rows).toBeGreaterThanOrEqual(3);expect(result.verified).toBe(true);expect((await pool.query('SELECT id FROM orders WHERE id=$1',[o.id])).rowCount).toBe(1);expect((await pool.query('SELECT 1 FROM pg_database WHERE datname=$1',[result.database])).rowCount).toBe(0);}finally{await rm(dir,{recursive:true});}});
+it('never overwrites an existing backup',async()=>{const dir=await mkdtemp(join(tmpdir(),'linxiaobang-backup-test-')),path=join(dir,'fixture.json');try{await backup(process.env.DATABASE_URL!,path);await expect(backup(process.env.DATABASE_URL!,path)).rejects.toMatchObject({code:'EEXIST'});}finally{await rm(dir,{recursive:true});}});
+it('rejects unknown backup formats before creating a database',async()=>{const dir=await mkdtemp(join(tmpdir(),'linxiaobang-backup-test-')),path=join(dir,'bad.json');const{writeFile}=await import('node:fs/promises');await writeFile(path,'{"format":999}');try{await expect(restoreForTest(process.env.DATABASE_URL!,path)).rejects.toThrow('备份格式');}finally{await rm(dir,{recursive:true});}});
+it('uses loopback for native development and production',()=>{const p=JSON.parse(readFileSync('package.json','utf8'));expect(p.scripts.dev).toContain('--hostname 127.0.0.1');expect(p.scripts.start).toContain('--hostname 127.0.0.1');});

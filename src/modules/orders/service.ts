@@ -26,8 +26,10 @@ export async function createOrder(actor:Actor,input:CreateOrderInput,now:Date,re
   return {...view,privateDetails:d.privateDetails};
  });
 }
-export async function listOrders(_actor:Actor,filter:{category?:'MEAL'|'TRASH'},_now:Date):Promise<OrderView[]>{
- return(await pool.query('SELECT * FROM orders WHERE ($1::text IS NULL OR category=$1) ORDER BY created_at DESC LIMIT 200',[filter.category??null])).rows.map(orderView);
+export async function listOrders(actor:Actor,filter:{category?:'MEAL'|'TRASH';scope?:'mine'|'hall'},now:Date):Promise<OrderView[]>{
+ return(await pool.query(`SELECT * FROM orders WHERE ($1::text IS NULL OR category=$1)
+  AND ($2::text IS NULL OR ($2='mine' AND (requester_id=$3 OR assignee_id=$3)) OR ($2='hall' AND status='OPEN' AND deadline_at>$4))
+  ORDER BY created_at DESC LIMIT 200`,[filter.category??null,filter.scope??null,actor.id,now])).rows.map(orderView);
 }
 export async function getOrder(actor:Actor,id:string,_now:Date):Promise<OrderView>{
  const r=(await pool.query(`SELECT o.*, CASE WHEN o.requester_id=$2 OR (o.assignee_id=$2 AND o.status IN ('CLAIMED','DELIVERED','COMPLETED')) THEN p.details END AS authorized_details FROM orders o LEFT JOIN order_private p ON p.order_id=o.id WHERE o.id=$1`,[id,actor.id])).rows[0];
