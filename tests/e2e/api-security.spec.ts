@@ -1,0 +1,24 @@
+import {test,expect} from '@playwright/test';
+import {randomBytes,randomUUID} from 'node:crypto';
+test('HTTP boundary protects cookies, origins, identity and private order data',async({playwright})=>{
+ const owner=await playwright.request.newContext({baseURL:'http://127.0.0.1:3000'}),other=await playwright.request.newContext({baseURL:'http://127.0.0.1:3000'});
+ const auth={username:'http_'+randomBytes(6).toString('hex'),password:randomBytes(24).toString('hex'),adultConfirmed:true};
+ const headers={origin:'http://127.0.0.1:3000','x-csrf':'1'};
+ expect((await owner.get('/api/orders')).status()).toBe(401);
+ expect((await owner.post('/api/auth/register',{headers:{origin:'https://evil.example','x-csrf':'1'},data:auth})).status()).toBe(403);
+ const registered=await owner.post('/api/auth/register',{headers,data:auth});
+ expect(registered.status()).toBe(200);expect(await registered.json()).not.toHaveProperty('sessionToken');
+ const cookie=registered.headers()['set-cookie'];expect(cookie).toContain('HttpOnly');expect(cookie).toContain('SameSite=Strict');
+ await other.post('/api/auth/register',{headers,data:{...auth,username:'other_'+randomBytes(6).toString('hex')}});
+ const input={category:'MEAL',pickupArea:'虚构东门',dropoffArea:'虚构西门',bountyCents:200,privateDetails:'虚构隐私 CODE-ABC',deadlineAt:new Date(Date.now()+3600000).toISOString()};
+ const key=randomUUID(),posted=await owner.post('/api/orders',{headers:{...headers,'x-request-id':key},data:input}),o=await posted.json();expect(posted.status()).toBe(201);
+ expect((await (await owner.post('/api/orders',{headers:{...headers,'x-request-id':key},data:input})).json()).id).toBe(o.id);
+ expect(await (await other.get('/api/orders/'+o.id)).json()).not.toHaveProperty('privateDetails');
+ expect(await (await owner.get('/api/orders')).json()).toEqual(expect.arrayContaining([expect.not.objectContaining({privateDetails:input.privateDetails})]));
+ expect((await other.get('/api/admin/reports')).status()).toBe(403);
+ expect((await other.post('/api/orders/'+o.id+'/actions',{headers,data:{action:'CLAIM',requestId:randomUUID()}})).status()).toBe(200);
+ expect(await (await other.get('/api/orders/'+o.id)).json()).toHaveProperty('privateDetails',input.privateDetails);
+ await owner.post('/api/auth/logout',{headers,data:{}});
+ expect((await owner.get('/api/auth/me')).status()).toBe(401);
+ await owner.dispose();await other.dispose();
+});
