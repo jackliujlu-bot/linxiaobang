@@ -1,0 +1,11 @@
+import {it,expect} from 'vitest';
+import {actor,orderInput} from './helpers';
+import {createOrder,listOrders,getOrder} from '../src/modules/orders/service';
+import {requireActor} from '../src/modules/auth/service';
+it.each([199,301,0])('rejects bounty %s',async(bountyCents)=>{await expect(createOrder(await actor(),{...orderInput(),bountyCents} as any,new Date())).rejects.toMatchObject({status:400});});
+it('rejects unsupported categories',async()=>expect(createOrder(await actor(),{...orderInput(),category:'OTHER'} as any,new Date())).rejects.toMatchObject({status:400}));
+it.each([-1,0])('rejects past or exact deadline %s',async(offset)=>{const now=new Date();await expect(createOrder(await actor(),{...orderInput(),deadlineAt:new Date(+now+offset).toISOString()},now)).rejects.toMatchObject({status:400});});
+it('starts OPEN/HELD; only requester sees private details, never lists',async()=>{const owner=await actor(),other=await actor();const o=await createOrder(owner,orderInput(),new Date());expect(o).toMatchObject({status:'OPEN',simStatus:'HELD'});expect(await getOrder(owner,o.id,new Date())).toHaveProperty('privateDetails');expect(await getOrder(other,o.id,new Date())).not.toHaveProperty('privateDetails');expect((await listOrders(owner,{},new Date()))[0]).not.toHaveProperty('privateDetails');});
+it('requires login',async()=>expect(requireActor('')).rejects.toMatchObject({status:401}));
+it('validates text limits',async()=>expect(createOrder(await actor(),{...orderInput(),pickupArea:'x'.repeat(51)},new Date())).rejects.toMatchObject({status:400}));
+it('hides private details even if ordinary users guess valid order IDs',async()=>{const owner=await actor(),stranger=await actor(),o=await createOrder(owner,orderInput(),new Date());const view=await getOrder(stranger,o.id,new Date());expect(JSON.stringify(view)).not.toContain('A123');});

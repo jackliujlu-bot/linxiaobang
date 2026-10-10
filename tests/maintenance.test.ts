@@ -1,0 +1,11 @@
+import {it,expect} from 'vitest';
+import {randomUUID} from 'node:crypto';
+import {actor,orderInput} from './helpers';
+import {createOrder,getOrder} from '../src/modules/orders/service';
+import {actOnOrder} from '../src/modules/orders/actions';
+import {reportOrder} from '../src/modules/moderation/service';
+import {runMaintenance} from '../src/modules/maintenance/service';
+import {pool} from '../src/lib/db';
+it('expires at deadline, is restart-safe and idempotent',async()=>{const owner=await actor(),o=await createOrder(owner,orderInput(),new Date());expect((await runMaintenance(new Date(o.deadlineAt))).expired).toBe(1);expect((await runMaintenance(new Date(o.deadlineAt))).expired).toBe(0);expect(await getOrder(owner,o.id,new Date())).toMatchObject({status:'EXPIRED',simStatus:'REFUNDED'});});
+it('never auto-completes a claimed overdue order',async()=>{const owner=await actor(),o=await createOrder(owner,orderInput(),new Date());await actOnOrder(await actor(),o.id,'CLAIM',randomUUID(),new Date());await runMaintenance(new Date(+new Date(o.deadlineAt)+1));expect((await getOrder(owner,o.id,new Date())).status).toBe('CLAIMED');});
+it('purges private details at seven days but retains unresolved reports',async()=>{const owner=await actor();const a=await createOrder(owner,orderInput(),new Date()),b=await createOrder(owner,orderInput(),new Date());const now=new Date();await actOnOrder(owner,a.id,'CANCEL',randomUUID(),now);await actOnOrder(owner,b.id,'CANCEL',randomUUID(),now);await reportOrder(owner,b.id,'结束订单尚未处理的举报');expect((await runMaintenance(new Date(+now+7*86400000-1))).purged).toBe(0);expect((await runMaintenance(new Date(+now+7*86400000))).purged).toBe(1);expect((await pool.query('SELECT * FROM order_private WHERE order_id=$1',[a.id])).rows[0]).toBeUndefined();expect((await pool.query('SELECT * FROM order_private WHERE order_id=$1',[b.id])).rows[0]).toBeDefined();});

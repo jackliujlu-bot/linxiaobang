@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.env
+.env.*
+!.env.example
+.superpowers/
+.local/
+test-results/
+playwright-report/
+*.tsbuildinfo
+*.dump
+*.log
+coverage/
+
+# Original user review document is retained locally, excluded from public source.
+docs/邻小帮第一版产品设计.docx

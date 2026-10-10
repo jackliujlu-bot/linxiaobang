@@ -1,0 +1,2 @@
+CREATE TABLE order_events(id uuid PRIMARY KEY,order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,actor_id uuid REFERENCES users(id),action text NOT NULL,created_at timestamptz NOT NULL);
+CREATE TABLE idempotency_requests(actor_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,request_id text NOT NULL,fingerprint text NOT NULL,response jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(actor_id,request_id));
